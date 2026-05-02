@@ -1,0 +1,44 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "中国（示意）",
+        "kind": "boundary"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[73, 18], [135, 18], [135, 54], [73, 54], [73, 18]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "台湾省",
+        "kind": "taiwan"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[120, 21.8], [122.3, 21.8], [122.3, 25.4], [120, 25.4], [120, 21.8]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "南海断续线（示意）",
+        "kind": "nanhai"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [106, 21], [109, 20], [112, 18], [115, 16], [117, 13], [116, 10], [113, 9], [110, 10], [108, 12], [106, 15], [105, 18], [106, 21]
+        ]
+      }
+    }
+  ]
+}

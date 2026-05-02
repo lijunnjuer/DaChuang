@@ -1,0 +1,11 @@
+Flask==2.3.3
+Flask-RESTful==0.3.10
+Flask-Cors==4.0.1
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.32
+marshmallow==3.21.3
+redis==5.0.8
+celery==5.4.0
+gunicorn==21.2.0
+pymysql==1.1.1
+python-dotenv==1.0.1

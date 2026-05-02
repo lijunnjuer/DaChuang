@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    container_name: mercury-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - SQLALCHEMY_DATABASE_URI=mysql+pymysql://mercury_user:password@mysql:3306/mercury_watch
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - mysql
+      - redis
+
+  celery:
+    build: .
+    container_name: mercury-celery
+    command: celery -A celery_worker.celery_app worker --loglevel=info
+    depends_on:
+      - backend
+      - redis
+
+  mysql:
+    image: mysql:8.0
+    container_name: mercury-mysql
+    environment:
+      MYSQL_DATABASE: mercury_watch
+      MYSQL_USER: mercury_user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: mercury-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  mysql_data:
