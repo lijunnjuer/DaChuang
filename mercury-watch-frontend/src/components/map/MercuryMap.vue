@@ -26,10 +26,6 @@ let map: L.Map | null = null;
 let layer: L.LayerGroup | null = null;
 let complianceLayer: L.GeoJSON | null = null;
 
-const tdtToken = import.meta.env.VITE_TIANDITU_TOKEN as string | undefined;
-const standardMapImageUrl = import.meta.env.VITE_STANDARD_MAP_IMAGE_URL as string | undefined;
-const basemapMode = (import.meta.env.VITE_BASEMAP_MODE as string | undefined) ?? "tianditu";
-
 const dataStore = useDataStore();
 const mapStore = useMapStore();
 const { rawData } = storeToRefs(dataStore);
@@ -45,6 +41,7 @@ const selectNearestPoint = (lat: number, lng: number) => {
   if (!rawData.value.length) return;
   let nearestId = rawData.value[0].id;
   let nearestDist = Number.POSITIVE_INFINITY;
+
   rawData.value.forEach((item) => {
     const dLat = item.latitude - lat;
     const dLng = item.longitude - lng;
@@ -54,37 +51,44 @@ const selectNearestPoint = (lat: number, lng: number) => {
       nearestId = item.id;
     }
   });
+
   mapStore.togglePointSelection(nearestId);
 };
 
 const loadComplianceLayer = async () => {
   if (!map) return;
+
   try {
     const response = await fetch("/china-compliance-overlay.geojson");
     const geojson = await response.json();
+
     complianceLayer = L.geoJSON(geojson, {
       style: (feature) => {
         const kind = feature?.properties?.kind;
+
         if (kind === "nanhai") {
           return {
             color: "#c1121f",
             weight: 2,
-            dashArray: "8 6"
+            dashArray: "8 6",
+            fillOpacity: 0   // 不遮挡底图
           };
         }
+
         if (kind === "taiwan") {
           return {
             color: "#a4133c",
             weight: 2,
             fillColor: "#ffd6e0",
-            fillOpacity: 0.65
+            fillOpacity: 0.2
           };
         }
+
         return {
           color: "#24577a",
           weight: 1.5,
           fillColor: "#e6f0f7",
-          fillOpacity: 0.25
+          fillOpacity: 0.05  // 降低透明度
         };
       },
       onEachFeature: (feature, featureLayer) => {
@@ -97,70 +101,57 @@ const loadComplianceLayer = async () => {
           });
         }
       }
-    }).addTo(map);
+    });
+
+    complianceLayer.addTo(map);
+
+    //关键：放到底层，不遮挡地图
+    complianceLayer.bringToBack();
+
   } catch {
-    // Ignore overlay loading failures.
+    console.warn("GeoJSON 加载失败");
   }
 };
 
 const addOfficialBaseLayers = () => {
   if (!map) return;
 
-  if (basemapMode === "standard" && standardMapImageUrl) {
-    const bounds = L.latLngBounds(
-      L.latLng(-85, -180),
-      L.latLng(85, 180)
-    );
-    L.imageOverlay(standardMapImageUrl, bounds, {
-      opacity: 1
-    }).addTo(map);
-    return;
-  }
+  const token = "51ce881b8940b9d4c6d8acd3ca2d8085";
 
-  if (tdtToken) {
-    const ter = L.tileLayer(
-      `https://t{s}.tianditu.gov.cn/ter_c/wmts?service=wmts&request=GetTile&version=1.0.0&layer=ter&style=default&tilematrixset=c&format=tiles&tilematrix={z}&tilerow={y}&tilecol={x}&tk=${tdtToken}`,
-      {
-        subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"],
-        minZoom: 2,
-        maxZoom: 18,
-        attribution: "&copy; 天地图"
-      }
-    );
+  const vec = L.tileLayer(
+    `https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=${token}`,
+    {
+      subdomains: ["0","1","2","3","4","5","6","7"],
+      maxZoom: 18
+    }
+  );
 
-    const cta = L.tileLayer(
-      `https://t{s}.tianditu.gov.cn/cta_c/wmts?service=wmts&request=GetTile&version=1.0.0&layer=cta&style=default&tilematrixset=c&format=tiles&tilematrix={z}&tilerow={y}&tilecol={x}&tk=${tdtToken}`,
-      {
-        subdomains: ["0", "1", "2", "3", "4", "5", "6", "7"],
-        minZoom: 2,
-        maxZoom: 18,
-        attribution: "&copy; 天地图"
-      }
-    );
-    ter.addTo(map);
-    cta.addTo(map);
-    return;
-  }
+  const cva = L.tileLayer(
+    `https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=${token}`,
+    {
+      subdomains: ["0","1","2","3","4","5","6","7"],
+      maxZoom: 18
+    }
+  );
 
-  if (standardMapImageUrl) {
-    const bounds = L.latLngBounds(
-      L.latLng(-85, -180),
-      L.latLng(85, 180)
-    );
-    L.imageOverlay(standardMapImageUrl, bounds, {
-      opacity: 1
-    }).addTo(map);
-  }
+  vec.addTo(map);
+  cva.addTo(map);
+
+  //确保底图在最底层
+  vec.setZIndex(1);
+  cva.setZIndex(2);
 };
 
 const paint = () => {
   if (!map) return;
+
   if (layer) layer.remove();
   layer = L.layerGroup();
 
   rawData.value.forEach((item) => {
     const radius = Math.max(6, Math.min(20, item.concentration * 35));
     const isSelected = selectedIds().includes(item.id);
+
     const marker = L.circleMarker([item.latitude, item.longitude], {
       radius: isSelected ? radius + 3 : radius,
       color: riskColor(item.concentration),
@@ -168,9 +159,11 @@ const paint = () => {
       fillOpacity: isSelected ? 0.85 : 0.55,
       weight: isSelected ? 3 : 1
     });
+
     marker.bindPopup(
       `<b>${item.commonName}</b><br/>MeHg: ${item.concentration} mg/kg<br/>水域: ${item.freshwaterMarine}<br/>国家: ${item.iso}<br/>TL: ${item.tl}<br/>体长: ${item.bodyLengthCm ?? "-"} cm`
     );
+
     marker.on("click", () => mapStore.togglePointSelection(item.id));
     layer?.addLayer(marker);
   });
@@ -180,18 +173,22 @@ const paint = () => {
 
 onMounted(() => {
   if (!mapRef.value) return;
-  map = L.map(mapRef.value, { zoomControl: true, worldCopyJump: true }).setView(
-    mapStore.center,
-    mapStore.zoom
-  );
+
+  map = L.map(mapRef.value, {
+    zoomControl: true,
+    worldCopyJump: true
+  }).setView(mapStore.center, mapStore.zoom);
 
   addOfficialBaseLayers();
   loadComplianceLayer();
+
   map.on("click", (e: L.LeafletMouseEvent) => {
     selectNearestPoint(e.latlng.lat, e.latlng.lng);
   });
+
   paint();
   invalidateMapSize();
+
   window.addEventListener("resize", invalidateMapSize);
 });
 
@@ -200,11 +197,13 @@ onBeforeUnmount(() => {
 });
 
 watch(rawData, () => paint(), { deep: true });
+
 watch(
   () => mapStore.selectedPointIds,
   () => paint(),
   { deep: true }
 );
+
 watch(
   () => props.visible,
   (visible) => {
